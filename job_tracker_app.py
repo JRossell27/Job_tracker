@@ -2,7 +2,7 @@ import pandas as pd
 import os
 from datetime import datetime
 import streamlit as st
-from git import Repo
+from git import Repo, Actor
 
 # =======================
 # CONFIG
@@ -14,9 +14,6 @@ COLUMNS = [
     "Application Date", "Application Status", "Follow-Up Date",
     "Resume Optimized?", "Notes"
 ]
-
-# GitHub repo path (Streamlit Cloud will clone this repo automatically)
-REPO_PATH = "."  # current folder since Streamlit runs in the repo root
 
 # =======================
 # FUNCTIONS
@@ -50,15 +47,27 @@ def edit_application(index, updated_row):
     df.to_csv(DATA_FILE, index=False)
 
 def sync_to_github():
-    """Auto-commit and push to GitHub (works on Streamlit Cloud too)"""
+    """Commit & push changes to GitHub using token-based auth"""
+    token = os.getenv("GITHUB_TOKEN")
+    username = os.getenv("GITHUB_USERNAME")
+    repo_name = os.getenv("GITHUB_REPO")
+
+    if not token or not username or not repo_name:
+        st.warning("⚠️ GitHub sync disabled – missing secrets.")
+        return
+
     with open(SYNC_FILE, "w") as f:
         f.write(f"Last synced: {datetime.now()}\n")
-    repo = Repo(REPO_PATH)
+
+    repo = Repo(".")
     repo.git.add(DATA_FILE)
     repo.git.add(SYNC_FILE)
+
     if repo.is_dirty():
-        repo.index.commit(f"Job tracker updated {datetime.now()}")
+        author = Actor(username, f"{username}@users.noreply.github.com")
+        repo.index.commit(f"Job tracker updated {datetime.now()}", author=author)
         origin = repo.remote(name="origin")
+        origin.set_url(f"https://{username}:{token}@github.com/{username}/{repo_name}.git")
         origin.push()
 
 def get_stats():
