@@ -11,8 +11,8 @@ DATA_FILE = "job_data.csv"
 SYNC_FILE = "last_synced.txt"
 COLUMNS = [
     "Company", "Job Title", "Location", "Salary (Est.)", "Job Posting Link",
-    "Application Date", "Application Status", "Follow-Up Date",
-    "Resume Optimized?", "Notes"
+    "Application Date", "Application Status", "Interview Stage",
+    "Follow-Up Date", "Resume Optimized?", "Job Source", "Contact Name", "Notes"
 ]
 
 # =======================
@@ -29,13 +29,16 @@ def init_tracker():
                 df[col] = ""
     df.to_csv(DATA_FILE, index=False)
 
-def add_application(company, job_title, location, salary, link, app_date, status, follow_up, resume_opt, notes):
+def add_application(company, job_title, location, salary, link, app_date, status,
+                    interview_stage, follow_up, resume_opt, job_source, contact_name, notes):
     df = pd.read_csv(DATA_FILE)
     new_row = {
         "Company": company, "Job Title": job_title, "Location": location,
         "Salary (Est.)": salary, "Job Posting Link": link,
         "Application Date": app_date, "Application Status": status,
-        "Follow-Up Date": follow_up, "Resume Optimized?": resume_opt, "Notes": notes
+        "Interview Stage": interview_stage, "Follow-Up Date": follow_up,
+        "Resume Optimized?": resume_opt, "Job Source": job_source,
+        "Contact Name": contact_name, "Notes": notes
     }
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(DATA_FILE, index=False)
@@ -112,12 +115,16 @@ with st.expander("➕ Add a New Application", expanded=True):
         link = st.text_input("Job Posting Link")
         app_date = st.date_input("Application Date")
         status = st.selectbox("Application Status", ["Applied", "Interview", "Offer", "Rejected", "Ghosted"])
+        interview_stage = st.selectbox("Interview Stage", ["N/A", "Screening", "Technical", "Final", "Offer Pending"])
         follow_up = st.date_input("Follow-Up Date")
         resume_opt = st.selectbox("Resume Optimized?", ["Yes", "No"])
+        job_source = st.text_input("Job Source (LinkedIn, Referral, etc.)")
+        contact_name = st.text_input("Contact Name (if any)")
         notes = st.text_area("Notes")
         submitted = st.form_submit_button("Add Application")
         if submitted:
-            add_application(company, job_title, location, salary, link, app_date, status, follow_up, resume_opt, notes)
+            add_application(company, job_title, location, salary, link, app_date, status,
+                            interview_stage, follow_up, resume_opt, job_source, contact_name, notes)
             sync_to_github()
             st.success("✅ Application added & synced to GitHub!")
 
@@ -129,7 +136,7 @@ for i, (k, v) in enumerate(stats.items()):
     cols[i].metric(k, v)
 
 # --- VIEW & EDIT APPLICATIONS ---
-st.subheader("✏️ Edit Applications")
+st.subheader("✏️ Edit or Delete Applications")
 df = pd.read_csv(DATA_FILE)
 
 if len(df) > 0:
@@ -151,21 +158,39 @@ if len(df) > 0:
         status_e = st.selectbox("Application Status", ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
                                 index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
                                 if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0)
+        interview_stage_e = st.selectbox("Interview Stage",
+                                ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
+                                index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
+                                if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0)
         follow_up_e = st.date_input("Follow-Up Date", value=safe_date(row["Follow-Up Date"]))
         resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"], index=0 if row["Resume Optimized?"] == "Yes" else 1)
+        job_source_e = st.text_input("Job Source", value=row["Job Source"])
+        contact_name_e = st.text_input("Contact Name", value=row["Contact Name"])
         notes_e = st.text_area("Notes", value=row["Notes"])
-        edited = st.form_submit_button("Save Changes")
+
+        col3, col4 = st.columns(2)
+        edited = col3.form_submit_button("💾 Save Changes")
+        delete = col4.form_submit_button("🗑️ Delete Entry")
 
         if edited:
             updated_row = {
                 "Company": company_e, "Job Title": job_title_e, "Location": location_e,
                 "Salary (Est.)": salary_e, "Job Posting Link": link_e,
                 "Application Date": app_date_e, "Application Status": status_e,
-                "Follow-Up Date": follow_up_e, "Resume Optimized?": resume_opt_e, "Notes": notes_e
+                "Interview Stage": interview_stage_e, "Follow-Up Date": follow_up_e,
+                "Resume Optimized?": resume_opt_e, "Job Source": job_source_e,
+                "Contact Name": contact_name_e, "Notes": notes_e
             }
             edit_application(edited_index, updated_row)
             sync_to_github()
             st.success("✅ Changes saved & synced to GitHub!")
+
+        if delete:
+            df.drop(index=edited_index, inplace=True)
+            df.to_csv(DATA_FILE, index=False)
+            sync_to_github()
+            st.warning("🗑️ Entry deleted & synced to GitHub!")
+            st.experimental_rerun()
 
 # --- SHOW TABLE ---
 st.subheader("📄 All Applications")
