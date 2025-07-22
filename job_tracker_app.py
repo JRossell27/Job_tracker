@@ -24,7 +24,10 @@ def init_tracker():
     if not os.path.exists(DATA_FILE):
         df = pd.DataFrame(columns=COLUMNS)
     else:
-        df = pd.read_csv(DATA_FILE)
+        try:
+            df = pd.read_csv(DATA_FILE)
+        except pd.errors.EmptyDataError:
+            df = pd.DataFrame(columns=COLUMNS)
         for col in COLUMNS:
             if col not in df.columns:
                 df[col] = ""
@@ -107,21 +110,21 @@ init_tracker()
 
 # --- ADD NEW APPLICATION ---
 with st.expander("➕ Add a New Application", expanded=True):
-    # Reset button functionality
     if "reset_form" not in st.session_state:
         st.session_state.reset_form = False
 
     def reset_form():
         st.session_state.reset_form = True
-        st.experimental_rerun()
+        init_tracker()
+        st.rerun()
 
     with st.form("application_form", clear_on_submit=st.session_state.reset_form):
         col1, col2 = st.columns(2)
-        company = col1.text_input("Company", value="" if st.session_state.reset_form else "")
-        job_title = col2.text_input("Job Title", value="" if st.session_state.reset_form else "")
-        location = col1.text_input("Location", value="" if st.session_state.reset_form else "")
-        salary = col2.text_input("Salary (Est.)", value="" if st.session_state.reset_form else "")
-        link = st.text_input("Job Posting Link", value="" if st.session_state.reset_form else "")
+        company = col1.text_input("Company")
+        job_title = col2.text_input("Job Title")
+        location = col1.text_input("Location")
+        salary = col2.text_input("Salary (Est.)")
+        link = st.text_input("Job Posting Link")
         app_date = st.date_input("Application Date")
         status = st.selectbox("Application Status", ["Applied", "Interview", "Offer", "Rejected", "Ghosted"])
         interview_stage = st.selectbox("Interview Stage", ["N/A", "Screening", "Technical", "Final", "Offer Pending"])
@@ -130,9 +133,10 @@ with st.expander("➕ Add a New Application", expanded=True):
         follow_up = "" if clear_follow_up else follow_up
         follow_up_sent = st.selectbox("Follow-Up Sent?", ["Yes", "No"])
         resume_opt = st.selectbox("Resume Optimized?", ["Yes", "No"])
-        job_source = st.text_input("Job Source (LinkedIn, Referral, etc.)", value="")
-        contact_name = st.text_input("Contact Name (if any)", value="")
-        notes = st.text_area("Notes", value="")
+        job_source = st.text_input("Job Source (LinkedIn, Referral, etc.)")
+        contact_name = st.text_input("Contact Name (if any)")
+        notes = st.text_area("Notes")
+
         col3, col4 = st.columns(2)
         submitted = col3.form_submit_button("Add Application")
         reset = col4.form_submit_button("Reset Form", on_click=reset_form)
@@ -143,7 +147,7 @@ with st.expander("➕ Add a New Application", expanded=True):
             sync_to_github()
             st.success("✅ Application added & synced to GitHub!")
             st.session_state.reset_form = True
-            st.experimental_rerun()
+            st.rerun()
 
 # --- STATS ---
 st.subheader("📊 Stats")
@@ -185,7 +189,9 @@ if len(df) > 0:
             if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0
         )
         clear_follow_up_edit = st.checkbox("Clear Follow-Up Date (Edit)")
-        follow_up_e = "" if clear_follow_up_edit else st.date_input("Follow-Up Date", value=safe_date(row["Follow-Up Date"]))
+        follow_up_e = "" if clear_follow_up_edit else st.date_input(
+            "Follow-Up Date", value=safe_date(row["Follow-Up Date"]) if row["Follow-Up Date"] != "" else datetime.now()
+        )
         follow_up_sent_e = st.selectbox("Follow-Up Sent?", ["Yes", "No"], index=0 if row["Follow-Up Sent?"] == "Yes" else 1)
         resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"], index=0 if row["Resume Optimized?"] == "Yes" else 1)
         job_source_e = st.text_input("Job Source", value=row["Job Source"])
