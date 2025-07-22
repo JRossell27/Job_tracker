@@ -155,13 +155,18 @@ if len(df) > 0:
         salary_e = col2.text_input("Salary (Est.)", value=row["Salary (Est.)"])
         link_e = st.text_input("Job Posting Link", value=row["Job Posting Link"])
         app_date_e = st.date_input("Application Date", value=safe_date(row["Application Date"]))
-        status_e = st.selectbox("Application Status", ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
-                                index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
-                                if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0)
-        interview_stage_e = st.selectbox("Interview Stage",
-                                ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
-                                index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
-                                if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0)
+        status_e = st.selectbox(
+            "Application Status",
+            ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
+            index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
+            if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0
+        )
+        interview_stage_e = st.selectbox(
+            "Interview Stage",
+            ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
+            index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
+            if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0
+        )
         follow_up_e = st.date_input("Follow-Up Date", value=safe_date(row["Follow-Up Date"]))
         resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"], index=0 if row["Resume Optimized?"] == "Yes" else 1)
         job_source_e = st.text_input("Job Source", value=row["Job Source"])
@@ -185,14 +190,12 @@ if len(df) > 0:
             sync_to_github()
             st.success("✅ Changes saved & synced to GitHub!")
 
-if delete:
-    df.drop(index=edited_index, inplace=True)
-    df.to_csv(DATA_FILE, index=False)
-    sync_to_github()
-    st.warning("🗑️ Entry deleted & synced to GitHub!")
-    st.rerun()
-
-
+        if delete:
+            df.drop(index=edited_index, inplace=True)
+            df.to_csv(DATA_FILE, index=False)
+            sync_to_github()
+            st.warning("🗑️ Entry deleted & synced to GitHub!")
+            st.rerun()
 
 # --- SHOW TABLE ---
 st.subheader("📄 All Applications")
