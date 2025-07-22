@@ -94,7 +94,10 @@ def get_stats():
     }
 
 def safe_date(value):
+    """Return a safe datetime object or today's date"""
     try:
+        if pd.isna(value) or value == "" or str(value).lower() == "nan":
+            return datetime.now()
         return pd.to_datetime(value)
     except:
         return datetime.now()
@@ -157,16 +160,16 @@ for i, (k, v) in enumerate(stats.items()):
 
 # --- VIEW & EDIT APPLICATIONS ---
 with st.expander("✏️ Edit or Delete Applications", expanded=False):
-    df = pd.read_csv(DATA_FILE)
-    if len(df) > 0:
+    df_edit = pd.read_csv(DATA_FILE)
+    if len(df_edit) > 0:
         edited_index = st.selectbox(
             "Select application to edit",
-            options=df.index,
-            format_func=lambda i: f"{df.at[i, 'Company']} - {df.at[i, 'Job Title']}"
+            options=df_edit.index,
+            format_func=lambda i: f"{df_edit.at[i, 'Company']} - {df_edit.at[i, 'Job Title']}"
         )
-        row = df.iloc[edited_index]
+        row = df_edit.iloc[edited_index]
 
-        with st.form("edit_form"):
+        with st.form("edit_form", clear_on_submit=False):
             col1, col2 = st.columns(2)
             company_e = col1.text_input("Company", value=row["Company"])
             job_title_e = col2.text_input("Job Title", value=row["Job Title"])
@@ -183,8 +186,7 @@ with st.expander("✏️ Edit or Delete Applications", expanded=False):
                                              index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
                                              if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0)
             clear_follow_up_edit = st.checkbox("Clear Follow-Up Date (Edit)")
-            follow_up_e = "" if clear_follow_up_edit else st.date_input(
-                "Follow-Up Date", value=safe_date(row["Follow-Up Date"]) if row["Follow-Up Date"] != "" else datetime.now())
+            follow_up_e = "" if clear_follow_up_edit else st.date_input("Follow-Up Date", value=safe_date(row["Follow-Up Date"]))
             follow_up_sent_e = st.selectbox("Follow-Up Sent?", ["Yes", "No"],
                                             index=0 if row["Follow-Up Sent?"] == "Yes" else 1)
             resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"],
@@ -211,23 +213,22 @@ with st.expander("✏️ Edit or Delete Applications", expanded=False):
                 st.success("✅ Changes saved & synced to GitHub!")
 
             if delete:
-                df.drop(index=edited_index, inplace=True)
-                df.to_csv(DATA_FILE, index=False)
+                df_edit.drop(index=edited_index, inplace=True)
+                df_edit.to_csv(DATA_FILE, index=False)
                 sync_to_github()
                 st.warning("🗑️ Entry deleted & synced to GitHub!")
                 st.rerun()
 
-# --- SEARCH, FILTERS, AND CHARTS ---
+# --- SEARCH, FILTERS & CHARTS ---
 st.subheader("🔍 Search, Filters & Charts")
-df = pd.read_csv(DATA_FILE)
-if len(df) > 0:
+df_view = pd.read_csv(DATA_FILE)
+if len(df_view) > 0:
     search = st.text_input("Search by Company or Job Title")
-    status_filter = st.multiselect("Filter by Application Status", df["Application Status"].unique())
-    follow_up_filter = st.multiselect("Filter by Follow-Up Sent?", df["Follow-Up Sent?"].unique())
-    resume_filter = st.multiselect("Filter by Resume Optimized?", df["Resume Optimized?"].unique())
+    status_filter = st.multiselect("Filter by Application Status", df_view["Application Status"].unique())
+    follow_up_filter = st.multiselect("Filter by Follow-Up Sent?", df_view["Follow-Up Sent?"].unique())
+    resume_filter = st.multiselect("Filter by Resume Optimized?", df_view["Resume Optimized?"].unique())
 
-    filtered_df = df.copy()
-
+    filtered_df = df_view.copy()
     if search:
         filtered_df = filtered_df[
             filtered_df["Company"].str.contains(search, case=False, na=False) |
@@ -243,11 +244,9 @@ if len(df) > 0:
     st.write("### Filtered Results")
     st.dataframe(filtered_df)
 
-    # --- Charts ---
     st.write("### 📊 Applications Over Time")
     filtered_df["Application Date"] = pd.to_datetime(filtered_df["Application Date"], errors="coerce")
     apps_over_time = filtered_df.groupby(filtered_df["Application Date"].dt.date).size()
-
     if not apps_over_time.empty:
         st.line_chart(apps_over_time)
 
