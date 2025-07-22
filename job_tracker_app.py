@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 import streamlit as st
 from git import Repo, Actor
+import matplotlib.pyplot as plt
 
 # =======================
 # CONFIG
@@ -222,6 +223,54 @@ with st.expander("✏️ Edit or Delete Applications", expanded=False):
                 st.warning("🗑️ Entry deleted & synced to GitHub!")
                 st.rerun()
 
-# --- SHOW TABLE ---
-st.subheader("📄 All Applications")
-st.dataframe(pd.read_csv(DATA_FILE))
+# --- SEARCH, FILTERS, AND CHARTS ---
+st.subheader("🔍 Search, Filters & Charts")
+
+df = pd.read_csv(DATA_FILE)
+
+if len(df) > 0:
+    search = st.text_input("Search by Company or Job Title")
+    status_filter = st.multiselect("Filter by Application Status", df["Application Status"].unique())
+    follow_up_filter = st.multiselect("Filter by Follow-Up Sent?", df["Follow-Up Sent?"].unique())
+    resume_filter = st.multiselect("Filter by Resume Optimized?", df["Resume Optimized?"].unique())
+
+    filtered_df = df.copy()
+
+    if search:
+        filtered_df = filtered_df[
+            filtered_df["Company"].str.contains(search, case=False, na=False) |
+            filtered_df["Job Title"].str.contains(search, case=False, na=False)
+        ]
+    if status_filter:
+        filtered_df = filtered_df[filtered_df["Application Status"].isin(status_filter)]
+    if follow_up_filter:
+        filtered_df = filtered_df[filtered_df["Follow-Up Sent?"].isin(follow_up_filter)]
+    if resume_filter:
+        filtered_df = filtered_df[filtered_df["Resume Optimized?"].isin(resume_filter)]
+
+    st.write("### Filtered Results")
+    st.dataframe(filtered_df)
+
+    # --- Charts ---
+    st.write("### 📊 Applications Over Time")
+    filtered_df["Application Date"] = pd.to_datetime(filtered_df["Application Date"], errors="coerce")
+    apps_over_time = filtered_df.groupby(filtered_df["Application Date"].dt.date).size()
+
+    if not apps_over_time.empty:
+        plt.figure(figsize=(6, 3))
+        plt.plot(apps_over_time.index, apps_over_time.values, marker="o")
+        plt.xticks(rotation=45)
+        plt.title("Applications Over Time")
+        plt.xlabel("Date")
+        plt.ylabel("Applications")
+        st.pyplot(plt)
+
+    st.write("### 📊 Status Breakdown")
+    status_counts = filtered_df["Application Status"].value_counts()
+    if not status_counts.empty:
+        plt.figure(figsize=(5, 3))
+        plt.bar(status_counts.index, status_counts.values)
+        plt.title("Status Breakdown")
+        plt.xlabel("Status")
+        plt.ylabel("Count")
+        st.pyplot(plt)
