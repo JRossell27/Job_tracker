@@ -1,13 +1,14 @@
 import pandas as pd
 import os
+import hashlib
 from datetime import datetime
 import streamlit as st
-from git import Repo, Actor
+from git import Repo
 
 # =======================
 # CONFIG
 # =======================
-BASE_DATA_FILE = "job_data.csv"  # your original file with your existing applications
+USER_PASSWORD_FILE = "user_passwords.csv"
 SYNC_FILE = "last_synced.txt"
 COLUMNS = [
     "Company", "Job Title", "Location", "Salary (Est.)", "Job Posting Link",
@@ -17,15 +18,38 @@ COLUMNS = [
 ]
 
 # =======================
-# FUNCTIONS
+# PASSWORD FUNCTIONS
 # =======================
-def init_tracker(user_file, user_name):
-    """Create or fix user CSV (Jason gets old data, others start blank)"""
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def load_user_passwords():
+    if not os.path.exists(USER_PASSWORD_FILE):
+        return pd.DataFrame(columns=["User", "PasswordHash"])
+    return pd.read_csv(USER_PASSWORD_FILE)
+
+def save_user_password(user, password):
+    df = load_user_passwords()
+    if user in df["User"].values:
+        df.loc[df["User"] == user, "PasswordHash"] = hash_password(password)
+    else:
+        df = pd.concat([df, pd.DataFrame([{"User": user, "PasswordHash": hash_password(password)}])], ignore_index=True)
+    df.to_csv(USER_PASSWORD_FILE, index=False)
+
+def verify_password(user, password):
+    df = load_user_passwords()
+    if user not in df["User"].values:
+        return None
+    stored_hash = df.loc[df["User"] == user, "PasswordHash"].values[0]
+    return stored_hash == hash_password(password)
+
+# =======================
+# JOB TRACKER FUNCTIONS
+# =======================
+def init_tracker(user_file):
+    """Creates a blank CSV for new users, ensures correct columns"""
     if not os.path.exists(user_file):
-        if user_name.lower() == "jason" and os.path.exists(BASE_DATA_FILE):
-            df = pd.read_csv(BASE_DATA_FILE)
-        else:
-            df = pd.DataFrame(columns=COLUMNS)
+        df = pd.DataFrame(columns=COLUMNS)
         df.to_csv(user_file, index=False)
     else:
         try:
@@ -58,7 +82,6 @@ def edit_application(user_file, index, updated_row):
     df.to_csv(user_file, index=False)
 
 def sync_to_github():
-    """Push all CSVs to GitHub"""
     token = os.getenv("GITHUB_TOKEN")
     username = os.getenv("GITHUB_USERNAME")
     repo_name = os.getenv("GITHUB_REPO")
@@ -108,17 +131,33 @@ def safe_date(value):
 # =======================
 # STREAMLIT APP
 # =======================
-st.set_page_config(page_title="Job Application Tracker", layout="wide")
+st.set_page_config(page_title="Multi-User Job Tracker", layout="wide")
 st.title("📌 Multi-User Job Application Tracker")
 
-# --- USER SELECTION ---
-user_name = st.text_input("Enter Your Name (e.g., Jason)").strip()
-if not user_name:
-    st.warning("👤 Please enter your name to continue.")
+# --- USER LOGIN / REGISTRATION ---
+st.subheader("👤 Login or Create Account")
+
+user_name = st.text_input("Enter Your Name").strip()
+user_pass = st.text_input("Enter Your Password", type="password")
+
+if not user_name or not user_pass:
     st.stop()
 
+existing = user_name in load_user_passwords()["User"].values
+
+if existing:
+    if not verify_password(user_name, user_pass):
+        st.error("❌ Incorrect password. Try again.")
+        st.stop()
+else:
+    st.info("🆕 New user detected! Creating your account now...")
+    save_user_password(user_name, user_pass)
+
+# Setup user CSV
 user_file = f"job_data_{user_name}.csv"
-init_tracker(user_file, user_name)
+init_tracker(user_file)
+
+st.success(f"✅ Logged in as {user_name}")
 
 # --- ADD NEW APPLICATION ---
 with st.expander("➕ Add a New Application", expanded=True):
@@ -127,7 +166,7 @@ with st.expander("➕ Add a New Application", expanded=True):
 
     def reset_form():
         st.session_state.reset_form = True
-        init_tracker(user_file, user_name)
+        init_tracker(user_file)
         st.rerun()
 
     with st.form("application_form", clear_on_submit=st.session_state.reset_form):
@@ -157,7 +196,7 @@ with st.expander("➕ Add a New Application", expanded=True):
             add_application(user_file, company, job_title, location, salary, link, app_date, status,
                             interview_stage, follow_up, follow_up_sent, resume_opt, job_source, contact_name, notes)
             sync_to_github()
-            st.success(f"✅ Application added for {user_name} & synced to GitHub!")
+            st.success(f"✅ Application added for {user_name}!")
             st.session_state.reset_form = True
             st.rerun()
 
