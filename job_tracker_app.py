@@ -157,71 +157,71 @@ for i, (k, v) in enumerate(stats.items()):
     cols[i].metric(k, v)
 
 # --- VIEW & EDIT APPLICATIONS ---
-st.subheader("✏️ Edit or Delete Applications")
-df = pd.read_csv(DATA_FILE)
+with st.expander("✏️ Edit or Delete Applications", expanded=False):
+    df = pd.read_csv(DATA_FILE)
 
-if len(df) > 0:
-    edited_index = st.selectbox(
-        "Select application to edit",
-        options=df.index,
-        format_func=lambda i: f"{df.at[i, 'Company']} - {df.at[i, 'Job Title']}"
-    )
-    row = df.iloc[edited_index]
-
-    with st.form("edit_form"):
-        col1, col2 = st.columns(2)
-        company_e = col1.text_input("Company", value=row["Company"])
-        job_title_e = col2.text_input("Job Title", value=row["Job Title"])
-        location_e = col1.text_input("Location", value=row["Location"])
-        salary_e = col2.text_input("Salary (Est.)", value=row["Salary (Est.)"])
-        link_e = st.text_input("Job Posting Link", value=row["Job Posting Link"])
-        app_date_e = st.date_input("Application Date", value=safe_date(row["Application Date"]))
-        status_e = st.selectbox(
-            "Application Status",
-            ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
-            index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
-            if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0
+    if len(df) > 0:
+        edited_index = st.selectbox(
+            "Select application to edit",
+            options=df.index,
+            format_func=lambda i: f"{df.at[i, 'Company']} - {df.at[i, 'Job Title']}"
         )
-        interview_stage_e = st.selectbox(
-            "Interview Stage",
-            ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
-            index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
-            if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0
-        )
-        clear_follow_up_edit = st.checkbox("Clear Follow-Up Date (Edit)")
-        follow_up_e = "" if clear_follow_up_edit else st.date_input(
-            "Follow-Up Date", value=safe_date(row["Follow-Up Date"]) if row["Follow-Up Date"] != "" else datetime.now()
-        )
-        follow_up_sent_e = st.selectbox("Follow-Up Sent?", ["Yes", "No"], index=0 if row["Follow-Up Sent?"] == "Yes" else 1)
-        resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"], index=0 if row["Resume Optimized?"] == "Yes" else 1)
-        job_source_e = st.text_input("Job Source", value=row["Job Source"])
-        contact_name_e = st.text_input("Contact Name", value=row["Contact Name"])
-        notes_e = st.text_area("Notes", value=row["Notes"])
+        row = df.iloc[edited_index]
 
-        col3, col4 = st.columns(2)
-        edited = col3.form_submit_button("💾 Save Changes")
-        delete = col4.form_submit_button("🗑️ Delete Entry")
+        with st.form("edit_form"):
+            col1, col2 = st.columns(2)
+            company_e = col1.text_input("Company", value=row["Company"])
+            job_title_e = col2.text_input("Job Title", value=row["Job Title"])
+            location_e = col1.text_input("Location", value=row["Location"])
+            salary_e = col2.text_input("Salary (Est.)", value=row["Salary (Est.)"])
+            link_e = st.text_input("Job Posting Link", value=row["Job Posting Link"])
+            app_date_e = st.date_input("Application Date", value=safe_date(row["Application Date"]))
+            status_e = st.selectbox(
+                "Application Status",
+                ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
+                index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
+                if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0
+            )
+            interview_stage_e = st.selectbox(
+                "Interview Stage",
+                ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
+                index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
+                if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0
+            )
+            clear_follow_up_edit = st.checkbox("Clear Follow-Up Date (Edit)")
+            follow_up_e = "" if clear_follow_up_edit else st.date_input(
+                "Follow-Up Date", value=safe_date(row["Follow-Up Date"]) if row["Follow-Up Date"] != "" else datetime.now()
+            )
+            follow_up_sent_e = st.selectbox("Follow-Up Sent?", ["Yes", "No"], index=0 if row["Follow-Up Sent?"] == "Yes" else 1)
+            resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"], index=0 if row["Resume Optimized?"] == "Yes" else 1)
+            job_source_e = st.text_input("Job Source", value=row["Job Source"])
+            contact_name_e = st.text_input("Contact Name", value=row["Contact Name"])
+            notes_e = st.text_area("Notes", value=row["Notes"])
 
-        if edited:
-            updated_row = {
-                "Company": company_e, "Job Title": job_title_e, "Location": location_e,
-                "Salary (Est.)": salary_e, "Job Posting Link": link_e,
-                "Application Date": app_date_e, "Application Status": status_e,
-                "Interview Stage": interview_stage_e, "Follow-Up Date": follow_up_e,
-                "Follow-Up Sent?": follow_up_sent_e, "Resume Optimized?": resume_opt_e,
-                "Job Source": job_source_e, "Contact Name": contact_name_e, "Notes": notes_e
-            }
-            edit_application(edited_index, updated_row)
-            sync_to_github()
-            st.success("✅ Changes saved & synced to GitHub!")
+            col3, col4 = st.columns(2)
+            edited = col3.form_submit_button("💾 Save Changes")
+            delete = col4.form_submit_button("🗑️ Delete Entry")
 
-        if delete:
-            df.drop(index=edited_index, inplace=True)
-            df.to_csv(DATA_FILE, index=False)
-            sync_to_github()
-            st.warning("🗑️ Entry deleted & synced to GitHub!")
-            st.rerun()
+            if edited:
+                updated_row = {
+                    "Company": company_e, "Job Title": job_title_e, "Location": location_e,
+                    "Salary (Est.)": salary_e, "Job Posting Link": link_e,
+                    "Application Date": app_date_e, "Application Status": status_e,
+                    "Interview Stage": interview_stage_e, "Follow-Up Date": follow_up_e,
+                    "Follow-Up Sent?": follow_up_sent_e, "Resume Optimized?": resume_opt_e,
+                    "Job Source": job_source_e, "Contact Name": contact_name_e, "Notes": notes_e
+                }
+                edit_application(edited_index, updated_row)
+                sync_to_github()
+                st.success("✅ Changes saved & synced to GitHub!")
+
+            if delete:
+                df.drop(index=edited_index, inplace=True)
+                df.to_csv(DATA_FILE, index=False)
+                sync_to_github()
+                st.warning("🗑️ Entry deleted & synced to GitHub!")
+                st.rerun()
 
 # --- SHOW TABLE ---
 st.subheader("📄 All Applications")
-st.dataframe(df)
+st.dataframe(pd.read_csv(DATA_FILE))
