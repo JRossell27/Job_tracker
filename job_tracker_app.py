@@ -7,7 +7,7 @@ from git import Repo, Actor
 # =======================
 # CONFIG
 # =======================
-BASE_DATA_FILE = "job_data.csv"  # your existing file
+BASE_DATA_FILE = "job_data.csv"  # your original file with your existing applications
 SYNC_FILE = "last_synced.txt"
 COLUMNS = [
     "Company", "Job Title", "Location", "Salary (Est.)", "Job Posting Link",
@@ -19,11 +19,10 @@ COLUMNS = [
 # =======================
 # FUNCTIONS
 # =======================
-def init_tracker(user_file):
-    """Create or fix user CSV"""
+def init_tracker(user_file, user_name):
+    """Create or fix user CSV (Jason gets old data, others start blank)"""
     if not os.path.exists(user_file):
-        # If user file doesn't exist but base exists, copy it for Jason
-        if os.path.exists(BASE_DATA_FILE):
+        if user_name.lower() == "jason" and os.path.exists(BASE_DATA_FILE):
             df = pd.read_csv(BASE_DATA_FILE)
         else:
             df = pd.DataFrame(columns=COLUMNS)
@@ -59,7 +58,7 @@ def edit_application(user_file, index, updated_row):
     df.to_csv(user_file, index=False)
 
 def sync_to_github():
-    """Push changes (all CSVs) to GitHub"""
+    """Push all CSVs to GitHub"""
     token = os.getenv("GITHUB_TOKEN")
     username = os.getenv("GITHUB_USERNAME")
     repo_name = os.getenv("GITHUB_REPO")
@@ -71,9 +70,8 @@ def sync_to_github():
     with open(SYNC_FILE, "w") as f:
         f.write(f"Last synced: {datetime.now()}\n")
 
-    from git import Repo
     repo = Repo(".")
-    repo.git.add(A=True)  # add all CSVs
+    repo.git.add(A=True)
     repo.git.add(SYNC_FILE)
 
     if repo.is_dirty():
@@ -113,14 +111,14 @@ def safe_date(value):
 st.set_page_config(page_title="Job Application Tracker", layout="wide")
 st.title("📌 Multi-User Job Application Tracker")
 
-# --- SELECT USER ---
+# --- USER SELECTION ---
 user_name = st.text_input("Enter Your Name (e.g., Jason)").strip()
 if not user_name:
     st.warning("👤 Please enter your name to continue.")
     st.stop()
 
 user_file = f"job_data_{user_name}.csv"
-init_tracker(user_file)
+init_tracker(user_file, user_name)
 
 # --- ADD NEW APPLICATION ---
 with st.expander("➕ Add a New Application", expanded=True):
@@ -129,7 +127,7 @@ with st.expander("➕ Add a New Application", expanded=True):
 
     def reset_form():
         st.session_state.reset_form = True
-        init_tracker(user_file)
+        init_tracker(user_file, user_name)
         st.rerun()
 
     with st.form("application_form", clear_on_submit=st.session_state.reset_form):
