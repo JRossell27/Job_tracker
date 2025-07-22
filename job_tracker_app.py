@@ -3,7 +3,6 @@ import os
 from datetime import datetime
 import streamlit as st
 from git import Repo, Actor
-import matplotlib.pyplot as plt
 
 # =======================
 # CONFIG
@@ -72,8 +71,7 @@ def sync_to_github():
     repo.git.add(SYNC_FILE)
 
     if repo.is_dirty():
-        author = Actor(username, f"{username}@users.noreply.github.com")
-        repo.index.commit(f"Job tracker updated {datetime.now()}", author=author)
+        repo.index.commit(f"Job tracker updated {datetime.now()}")
         origin = repo.remote(name="origin")
         origin.set_url(f"https://{username}:{token}@github.com/{username}/{repo_name}.git")
         origin.push()
@@ -160,7 +158,6 @@ for i, (k, v) in enumerate(stats.items()):
 # --- VIEW & EDIT APPLICATIONS ---
 with st.expander("✏️ Edit or Delete Applications", expanded=False):
     df = pd.read_csv(DATA_FILE)
-
     if len(df) > 0:
         edited_index = st.selectbox(
             "Select application to edit",
@@ -177,24 +174,21 @@ with st.expander("✏️ Edit or Delete Applications", expanded=False):
             salary_e = col2.text_input("Salary (Est.)", value=row["Salary (Est.)"])
             link_e = st.text_input("Job Posting Link", value=row["Job Posting Link"])
             app_date_e = st.date_input("Application Date", value=safe_date(row["Application Date"]))
-            status_e = st.selectbox(
-                "Application Status",
-                ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
-                index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
-                if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0
-            )
-            interview_stage_e = st.selectbox(
-                "Interview Stage",
-                ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
-                index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
-                if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0
-            )
+            status_e = st.selectbox("Application Status",
+                                    ["Applied", "Interview", "Offer", "Rejected", "Ghosted"],
+                                    index=["Applied", "Interview", "Offer", "Rejected", "Ghosted"].index(row["Application Status"])
+                                    if row["Application Status"] in ["Applied", "Interview", "Offer", "Rejected", "Ghosted"] else 0)
+            interview_stage_e = st.selectbox("Interview Stage",
+                                             ["N/A", "Screening", "Technical", "Final", "Offer Pending"],
+                                             index=["N/A", "Screening", "Technical", "Final", "Offer Pending"].index(row["Interview Stage"])
+                                             if row["Interview Stage"] in ["N/A", "Screening", "Technical", "Final", "Offer Pending"] else 0)
             clear_follow_up_edit = st.checkbox("Clear Follow-Up Date (Edit)")
             follow_up_e = "" if clear_follow_up_edit else st.date_input(
-                "Follow-Up Date", value=safe_date(row["Follow-Up Date"]) if row["Follow-Up Date"] != "" else datetime.now()
-            )
-            follow_up_sent_e = st.selectbox("Follow-Up Sent?", ["Yes", "No"], index=0 if row["Follow-Up Sent?"] == "Yes" else 1)
-            resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"], index=0 if row["Resume Optimized?"] == "Yes" else 1)
+                "Follow-Up Date", value=safe_date(row["Follow-Up Date"]) if row["Follow-Up Date"] != "" else datetime.now())
+            follow_up_sent_e = st.selectbox("Follow-Up Sent?", ["Yes", "No"],
+                                            index=0 if row["Follow-Up Sent?"] == "Yes" else 1)
+            resume_opt_e = st.selectbox("Resume Optimized?", ["Yes", "No"],
+                                        index=0 if row["Resume Optimized?"] == "Yes" else 1)
             job_source_e = st.text_input("Job Source", value=row["Job Source"])
             contact_name_e = st.text_input("Contact Name", value=row["Contact Name"])
             notes_e = st.text_area("Notes", value=row["Notes"])
@@ -225,9 +219,7 @@ with st.expander("✏️ Edit or Delete Applications", expanded=False):
 
 # --- SEARCH, FILTERS, AND CHARTS ---
 st.subheader("🔍 Search, Filters & Charts")
-
 df = pd.read_csv(DATA_FILE)
-
 if len(df) > 0:
     search = st.text_input("Search by Company or Job Title")
     status_filter = st.multiselect("Filter by Application Status", df["Application Status"].unique())
@@ -257,20 +249,9 @@ if len(df) > 0:
     apps_over_time = filtered_df.groupby(filtered_df["Application Date"].dt.date).size()
 
     if not apps_over_time.empty:
-        plt.figure(figsize=(6, 3))
-        plt.plot(apps_over_time.index, apps_over_time.values, marker="o")
-        plt.xticks(rotation=45)
-        plt.title("Applications Over Time")
-        plt.xlabel("Date")
-        plt.ylabel("Applications")
-        st.pyplot(plt)
+        st.line_chart(apps_over_time)
 
     st.write("### 📊 Status Breakdown")
     status_counts = filtered_df["Application Status"].value_counts()
     if not status_counts.empty:
-        plt.figure(figsize=(5, 3))
-        plt.bar(status_counts.index, status_counts.values)
-        plt.title("Status Breakdown")
-        plt.xlabel("Status")
-        plt.ylabel("Count")
-        st.pyplot(plt)
+        st.bar_chart(status_counts)
