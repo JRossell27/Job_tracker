@@ -185,12 +185,14 @@ if len(df) > 0:
             sync_to_github()
             st.success("✅ Changes saved & synced to GitHub!")
 
-        if delete:
-            df.drop(index=edited_index, inplace=True)
-            df.to_csv(DATA_FILE, index=False)
-            sync_to_github()
-            st.warning("🗑️ Entry deleted & synced to GitHub!")
-            st.experimental_rerun()
+if delete:
+    df.drop(index=edited_index, inplace=True)
+    df.to_csv(DATA_FILE, index=False)
+    sync_to_github()
+    st.warning("🗑️ Entry deleted & synced to GitHub!")
+    st.rerun()
+
+
 
 # --- SHOW TABLE ---
 st.subheader("📄 All Applications")
