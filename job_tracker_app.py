@@ -7,7 +7,7 @@ from git import Repo, Actor
 # =======================
 # CONFIG
 # =======================
-DATA_FILE = "job_data.csv"
+BASE_DATA_FILE = "job_data.csv"  # your existing file
 SYNC_FILE = "last_synced.txt"
 COLUMNS = [
     "Company", "Job Title", "Location", "Salary (Est.)", "Job Posting Link",
@@ -19,23 +19,28 @@ COLUMNS = [
 # =======================
 # FUNCTIONS
 # =======================
-def init_tracker():
-    """Create or fix CSV if missing columns"""
-    if not os.path.exists(DATA_FILE):
-        df = pd.DataFrame(columns=COLUMNS)
+def init_tracker(user_file):
+    """Create or fix user CSV"""
+    if not os.path.exists(user_file):
+        # If user file doesn't exist but base exists, copy it for Jason
+        if os.path.exists(BASE_DATA_FILE):
+            df = pd.read_csv(BASE_DATA_FILE)
+        else:
+            df = pd.DataFrame(columns=COLUMNS)
+        df.to_csv(user_file, index=False)
     else:
         try:
-            df = pd.read_csv(DATA_FILE)
+            df = pd.read_csv(user_file)
         except pd.errors.EmptyDataError:
             df = pd.DataFrame(columns=COLUMNS)
         for col in COLUMNS:
             if col not in df.columns:
                 df[col] = ""
-    df.to_csv(DATA_FILE, index=False)
+        df.to_csv(user_file, index=False)
 
-def add_application(company, job_title, location, salary, link, app_date, status,
+def add_application(user_file, company, job_title, location, salary, link, app_date, status,
                     interview_stage, follow_up, follow_up_sent, resume_opt, job_source, contact_name, notes):
-    df = pd.read_csv(DATA_FILE)
+    df = pd.read_csv(user_file)
     new_row = {
         "Company": company, "Job Title": job_title, "Location": location,
         "Salary (Est.)": salary, "Job Posting Link": link,
@@ -45,16 +50,16 @@ def add_application(company, job_title, location, salary, link, app_date, status
         "Job Source": job_source, "Contact Name": contact_name, "Notes": notes
     }
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-    df.to_csv(DATA_FILE, index=False)
+    df.to_csv(user_file, index=False)
 
-def edit_application(index, updated_row):
-    df = pd.read_csv(DATA_FILE)
+def edit_application(user_file, index, updated_row):
+    df = pd.read_csv(user_file)
     for col, val in updated_row.items():
         df.at[index, col] = val
-    df.to_csv(DATA_FILE, index=False)
+    df.to_csv(user_file, index=False)
 
 def sync_to_github():
-    """Commit & push changes to GitHub using token-based auth"""
+    """Push changes (all CSVs) to GitHub"""
     token = os.getenv("GITHUB_TOKEN")
     username = os.getenv("GITHUB_USERNAME")
     repo_name = os.getenv("GITHUB_REPO")
@@ -66,8 +71,9 @@ def sync_to_github():
     with open(SYNC_FILE, "w") as f:
         f.write(f"Last synced: {datetime.now()}\n")
 
+    from git import Repo
     repo = Repo(".")
-    repo.git.add(DATA_FILE)
+    repo.git.add(A=True)  # add all CSVs
     repo.git.add(SYNC_FILE)
 
     if repo.is_dirty():
@@ -76,8 +82,8 @@ def sync_to_github():
         origin.set_url(f"https://{username}:{token}@github.com/{username}/{repo_name}.git")
         origin.push()
 
-def get_stats():
-    df = pd.read_csv(DATA_FILE)
+def get_stats(user_file):
+    df = pd.read_csv(user_file)
     total = len(df)
     interviews = len(df[df["Application Status"].astype(str).str.contains("Interview", na=False)])
     offers = len(df[df["Application Status"].astype(str).str.contains("Offer", na=False)])
@@ -94,7 +100,6 @@ def get_stats():
     }
 
 def safe_date(value):
-    """Return a safe datetime object or today's date"""
     try:
         if pd.isna(value) or value == "" or str(value).lower() == "nan":
             return datetime.now()
@@ -106,9 +111,16 @@ def safe_date(value):
 # STREAMLIT APP
 # =======================
 st.set_page_config(page_title="Job Application Tracker", layout="wide")
-st.title("📌 Job Application Tracker")
+st.title("📌 Multi-User Job Application Tracker")
 
-init_tracker()
+# --- SELECT USER ---
+user_name = st.text_input("Enter Your Name (e.g., Jason)").strip()
+if not user_name:
+    st.warning("👤 Please enter your name to continue.")
+    st.stop()
+
+user_file = f"job_data_{user_name}.csv"
+init_tracker(user_file)
 
 # --- ADD NEW APPLICATION ---
 with st.expander("➕ Add a New Application", expanded=True):
@@ -117,7 +129,7 @@ with st.expander("➕ Add a New Application", expanded=True):
 
     def reset_form():
         st.session_state.reset_form = True
-        init_tracker()
+        init_tracker(user_file)
         st.rerun()
 
     with st.form("application_form", clear_on_submit=st.session_state.reset_form):
@@ -144,23 +156,23 @@ with st.expander("➕ Add a New Application", expanded=True):
         reset = col4.form_submit_button("Reset Form", on_click=reset_form)
 
         if submitted:
-            add_application(company, job_title, location, salary, link, app_date, status,
+            add_application(user_file, company, job_title, location, salary, link, app_date, status,
                             interview_stage, follow_up, follow_up_sent, resume_opt, job_source, contact_name, notes)
             sync_to_github()
-            st.success("✅ Application added & synced to GitHub!")
+            st.success(f"✅ Application added for {user_name} & synced to GitHub!")
             st.session_state.reset_form = True
             st.rerun()
 
 # --- STATS ---
-st.subheader("📊 Stats")
-stats = get_stats()
+st.subheader(f"📊 Stats for {user_name}")
+stats = get_stats(user_file)
 cols = st.columns(len(stats))
 for i, (k, v) in enumerate(stats.items()):
     cols[i].metric(k, v)
 
 # --- VIEW & EDIT APPLICATIONS ---
-with st.expander("✏️ Edit or Delete Applications", expanded=False):
-    df_edit = pd.read_csv(DATA_FILE)
+with st.expander(f"✏️ Edit or Delete Applications ({user_name})", expanded=False):
+    df_edit = pd.read_csv(user_file)
     if len(df_edit) > 0:
         edited_index = st.selectbox(
             "Select application to edit",
@@ -208,20 +220,20 @@ with st.expander("✏️ Edit or Delete Applications", expanded=False):
                     "Follow-Up Sent?": follow_up_sent_e, "Resume Optimized?": resume_opt_e,
                     "Job Source": job_source_e, "Contact Name": contact_name_e, "Notes": notes_e
                 }
-                edit_application(edited_index, updated_row)
+                edit_application(user_file, edited_index, updated_row)
                 sync_to_github()
-                st.success("✅ Changes saved & synced to GitHub!")
+                st.success(f"✅ Changes saved for {user_name}!")
 
             if delete:
                 df_edit.drop(index=edited_index, inplace=True)
-                df_edit.to_csv(DATA_FILE, index=False)
+                df_edit.to_csv(user_file, index=False)
                 sync_to_github()
-                st.warning("🗑️ Entry deleted & synced to GitHub!")
+                st.warning(f"🗑️ Entry deleted for {user_name}!")
                 st.rerun()
 
 # --- SEARCH, FILTERS & CHARTS ---
-st.subheader("🔍 Search, Filters & Charts")
-df_view = pd.read_csv(DATA_FILE)
+st.subheader(f"🔍 Search, Filters & Charts ({user_name})")
+df_view = pd.read_csv(user_file)
 if len(df_view) > 0:
     search = st.text_input("Search by Company or Job Title")
     status_filter = st.multiselect("Filter by Application Status", df_view["Application Status"].unique())
